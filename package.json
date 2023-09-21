@@ -1,9 +1,9 @@
 {
-  "name": "effect-http",
+  "name": "@rconjoe/effect-http",
   "type": "module",
   "version": "0.30.2",
-  "description": "High-level declarative HTTP API for effect-ts",
-  "homepage": "https://sukovanej.github.io/effect-http",
+  "description": "High-level declarative HTTP API for effect-ts (forked from sukovanej/effect-http)",
+  "homepage": "https://github.com/rconjoe/effect-http",
   "types": "./index.d.cts",
   "main": "./index.cjs",
   "publishConfig": {
@@ -43,6 +43,13 @@
   },
   "keywords": [],
   "author": "Milan Suk <Milansuk@email.cz>",
+  "maintainers": [
+    {
+      "name": "J. Carlton",
+      "email": "root@trog.host",
+      "url": "https://github.com/rconjoe"
+    }
+  ],
   "license": "MIT",
   "devDependencies": {
     "@changesets/cli": "^2.26.2",
