@@ -3,7 +3,7 @@ name: Canary release
 on:
   push:
     tags:
-      - canary
+      - "**-rc*"
 
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
@@ -47,6 +47,6 @@ jobs:
         env:
           NODE_OPTIONS: --experimental-fetch
       - run: pnpm lint
-      - run: pnpm publish --tag canary --force
+      - run: pnpm publish --tag canary --force --no-git-checks
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
