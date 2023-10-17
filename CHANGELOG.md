@@ -1,5 +1,59 @@
 # effect-http
 
+## 0.32.2
+
+### Patch Changes
+
+- 7e4546b: Update @effect/platform.
+
+## 0.32.1
+
+### Patch Changes
+
+- 757bd90: Update dependencies.
+- bce4f7e: Refactor: rewrite client using @effect/platform.
+
+## 0.32.0
+
+### Minor Changes
+
+- 3211930: Update effect.
+
+## 0.31.4
+
+### Patch Changes
+
+- 5b6d151: Update effect.
+
+## 0.31.3
+
+### Patch Changes
+
+- 42731e2: Update effect.
+
+## 0.31.2
+
+### Patch Changes
+
+- 28ed55b: Update effect dependencies.
+- ecca038: Update @effect/schema.
+
+## 0.31.1
+
+### Patch Changes
+
+- 7f57b7d: Update @effect/platform-node.
+
+## 0.31.0
+
+### Minor Changes
+
+- 9a4387d: Update effect.
+
+### Patch Changes
+
+- 9a4387d: Introduce `@effect/platform` Router derivation.
+
 ## 0.30.2
 
 ### Patch Changes

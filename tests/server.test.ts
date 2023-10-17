@@ -1,16 +1,26 @@
 import express from "express";
 import { createHash } from "node:crypto";
 
-import * as Context from "@effect/data/Context";
-import * as Either from "@effect/data/Either";
-import { pipe } from "@effect/data/Function";
-import * as Option from "@effect/data/Option";
-import * as RA from "@effect/data/ReadonlyArray";
-import * as Effect from "@effect/io/Effect";
-import * as Layer from "@effect/io/Layer";
-import * as Schema from "@effect/schema/Schema";
+import { Schema } from "@effect/schema";
+import {
+  Context,
+  Effect,
+  Either,
+  Layer,
+  Option,
+  ReadonlyArray,
+  pipe,
+} from "effect";
 import * as Http from "effect-http";
 
+import {
+  exampleApiGet,
+  exampleApiGetCustomResponseWithHeaders,
+  exampleApiGetHeaders,
+  exampleApiGetOptionalField,
+  exampleApiGetQueryParameter,
+  exampleApiGetStringResponse,
+} from "./examples";
 import { runTestEffect, testExpress, testServer } from "./utils";
 
 const Service1 = Context.Tag<number>();
@@ -23,44 +33,28 @@ const layer2 = pipe(
 );
 
 test("layers", async () => {
-  const api = pipe(
-    Http.api(),
-    Http.get("doStuff", "/stuff", { response: Schema.number }),
-  );
-
   const layer = Layer.provide(layer1, layer2);
 
-  const server = pipe(
-    api,
+  const server = exampleApiGet.pipe(
     Http.server,
-    Http.handle("doStuff", () => Effect.map(Service1, (value) => value + 2)),
+    Http.handle("getValue", () => Effect.map(Service1, (value) => value + 2)),
     Http.exhaustive,
   );
 
   const response = await pipe(
     testServer(server),
-    Effect.provideSomeLayer(layer),
-    Effect.flatMap((client) => client.doStuff({})),
+    Effect.provide(layer),
+    Effect.flatMap((client) => client.getValue({})),
     runTestEffect,
   );
 
   expect(response).toEqual(13);
 });
 
+// TODO: this is actually not testing the server because the error occurs
+// on the client side
 test("validation error", async () => {
-  const api = pipe(
-    Http.api(),
-    Http.get("hello", "/hello", {
-      request: {
-        query: Schema.struct({
-          country: pipe(Schema.string, Schema.pattern(/^[A-Z]{2}$/)),
-        }),
-      },
-      response: Schema.string,
-    }),
-  );
-
-  const server = Http.exampleServer(api);
+  const server = Http.exampleServer(exampleApiGetQueryParameter);
 
   const result = await pipe(
     testServer(server),
@@ -70,19 +64,11 @@ test("validation error", async () => {
     runTestEffect,
   );
 
-  expect(result).toMatchObject(
-    Either.left(Http.validationClientError({ _tag: "InvalidQueryError" })),
-  );
+  expect(result).toMatchObject(Either.left({ _tag: "QueryEncodeError" }));
 });
 
 test("human-readable error response", async () => {
-  const api = pipe(
-    Http.api(),
-    Http.get("hello", "/hello", { response: Schema.string }),
-  );
-
-  const server = pipe(
-    api,
+  const server = exampleApiGetStringResponse.pipe(
     Http.server,
     Http.handle("hello", () =>
       Effect.fail(Http.notFoundError("Didnt find it")),
@@ -108,18 +94,8 @@ test("human-readable error response", async () => {
 });
 
 test("headers", async () => {
-  const api = pipe(
-    Http.api(),
-    Http.get("hello", "/hello", {
-      response: Schema.struct({ clientIdHash: Schema.string }),
-      request: {
-        headers: Schema.struct({ "X-Client-Id": Schema.string }),
-      },
-    }),
-  );
-
   const server = pipe(
-    api,
+    exampleApiGetHeaders,
     Http.server,
     Http.handle("hello", ({ headers: { "x-client-id": apiKey } }) =>
       Effect.succeed({
@@ -189,29 +165,15 @@ test("Attempt to add a non-existing operation should fail as a safe guard", () =
 });
 
 test("Custom headers and status", async () => {
-  const api = pipe(
-    Http.api(),
-    Http.get("hello", "/hello", {
-      response: {
-        status: 201,
-        content: Schema.struct({ value: Schema.string }),
-        headers: Schema.struct({
-          "Content-Type": Schema.literal("application/json"),
-        }),
-      },
-    }),
-  );
-
   const server = pipe(
-    api,
+    exampleApiGetCustomResponseWithHeaders,
     Http.server,
-    Http.handle("hello", ({ ResponseUtil }) =>
-      Effect.succeed(
-        ResponseUtil.response201({
-          content: { value: "test" },
-          headers: { "content-type": "application/json" },
-        }),
-      ),
+    Http.handle("hello", () =>
+      Effect.succeed({
+        content: { value: "test" },
+        headers: { "my-header": "hello" },
+        status: 201,
+      } as const),
     ),
     Http.exhaustive,
   );
@@ -219,6 +181,7 @@ test("Custom headers and status", async () => {
   const result = await pipe(
     testServer(server),
     Effect.flatMap((client) =>
+      // TODO: this header is not necessary, it is provided intentionally?
       client.hello({ headers: { "x-client-id": "abc" } }),
     ),
     runTestEffect,
@@ -227,7 +190,7 @@ test("Custom headers and status", async () => {
   expect(result).toEqual({
     status: 201,
     content: { value: "test" },
-    headers: { "content-type": "application/json" },
+    headers: { "my-header": "hello" },
   });
 });
 
@@ -267,31 +230,32 @@ test("Express interop example", async () => {
 });
 
 test("Response containing optional field", async () => {
-  const Response = Schema.struct({
-    foo: Schema.optional(Schema.string).toOption(),
-  });
-
-  const api = pipe(
-    Http.api(),
-    Http.get("hello", "/hello", {
-      response: Response,
-    }),
-  );
-
   const server = pipe(
-    api,
+    exampleApiGetOptionalField,
     Http.server,
-    Http.handle("hello", () => Effect.succeed({ foo: Option.none() })),
+    Http.handle("hello", ({ query }) =>
+      Effect.succeed({
+        foo: query.value === "on" ? Option.some("hello") : Option.none(),
+      }),
+    ),
     Http.exhaustive,
   );
 
   const result = await pipe(
     testServer(server),
-    Effect.flatMap((client) => Effect.all([client.hello({}), client.hello()])),
+    Effect.flatMap((client) =>
+      Effect.all([
+        client.hello({ query: { value: "on" } }),
+        client.hello({ query: { value: "off" } }),
+      ]),
+    ),
     runTestEffect,
   );
 
-  expect(result).toEqual([{ foo: Option.none() }, { foo: Option.none() }]);
+  expect(result).toEqual([
+    { foo: Option.some("hello") },
+    { foo: Option.none() },
+  ]);
 });
 
 const helloApi = pipe(
@@ -374,16 +338,17 @@ describe("type safe responses", () => {
 
     const server = pipe(
       Http.server(api),
-      Http.handle("hello", ({ query: { value }, ResponseUtil }) => {
+      Http.handle("hello", ({ query: { value } }) => {
         const response =
           value == 12
-            ? ResponseUtil.response200({
+            ? {
                 content: 12,
                 headers: { "x-another-200": 12 },
-              })
+                status: 200 as const,
+              }
             : value == 13
-            ? ResponseUtil.response201({ content: 13 })
-            : ResponseUtil.response204({ headers: { "x-another": 13 } });
+            ? { content: 13, status: 201 as const }
+            : { headers: { "x-another": 13 }, status: 204 as const };
 
         return Effect.succeed(response);
       }),
@@ -393,7 +358,9 @@ describe("type safe responses", () => {
       testServer(server),
       Effect.flatMap((client) =>
         Effect.all(
-          RA.map([12, 13, 14], (value) => client.hello({ query: { value } })),
+          ReadonlyArray.map([12, 13, 14], (value) =>
+            client.hello({ query: { value } }),
+          ),
         ),
       ),
       runTestEffect,
@@ -475,7 +442,9 @@ test("optional headers / query / params fields", async () => {
 
   const result = await pipe(
     testServer(server),
-    Effect.flatMap((client) => Effect.all(RA.map(params, client.hello))),
+    Effect.flatMap((client) =>
+      Effect.all(ReadonlyArray.map(params, client.hello)),
+    ),
     runTestEffect,
   );
 
@@ -531,7 +500,9 @@ test("optional parameters", async () => {
 
   const result = await pipe(
     testServer(server),
-    Effect.flatMap((client) => Effect.all(RA.map(params, client.hello))),
+    Effect.flatMap((client) =>
+      Effect.all(ReadonlyArray.map(params, client.hello)),
+    ),
     runTestEffect,
   );
 
@@ -560,16 +531,15 @@ test("single full response", async () => {
 
   const server = pipe(
     Http.server(api),
-    Http.handle("hello", ({ ResponseUtil }) =>
-      Effect.succeed(
-        ResponseUtil.response200({
-          content: 12,
-          headers: { "my-header": "test" },
-        }),
-      ),
+    Http.handle("hello", () =>
+      Effect.succeed({
+        content: 12,
+        headers: { "my-header": "test" },
+        status: 200 as const,
+      }),
     ),
-    Http.handle("another", ({ ResponseUtil }) =>
-      Effect.succeed(ResponseUtil.response200({ content: 12 })),
+    Http.handle("another", () =>
+      Effect.succeed({ content: 12, status: 200 as const }),
     ),
   );
 
