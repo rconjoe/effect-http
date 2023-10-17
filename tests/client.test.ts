@@ -4,6 +4,7 @@ import { Schema } from "@effect/schema";
 import { Cause, Duration, Effect, Either, Exit, Fiber, pipe } from "effect";
 import * as Http from "effect-http";
 
+import { exampleApiGetQueryParameter } from "./examples";
 import { runTestEffect, testServer } from "./utils";
 
 test("quickstart example e2e", async () => {
@@ -159,7 +160,9 @@ test("missing headers", async () => {
     runTestEffect,
   );
 
-  expect(result).toMatchObject(Either.left({ _tag: "HeadersEncodeError" }));
+  expect(result).toMatchObject(
+    Either.left({ _tag: "RequestEncodeError", location: "headers" }),
+  );
 });
 
 test("common headers", async () => {
@@ -259,5 +262,21 @@ test("supports interruption", async () => {
       }),
     ),
     runTestEffect,
+  );
+});
+
+test("validation error", async () => {
+  const server = Http.exampleServer(exampleApiGetQueryParameter);
+
+  const result = await pipe(
+    testServer(server),
+    Effect.flatMap((client) =>
+      Effect.either(client.hello({ query: { country: "abc" } })),
+    ),
+    runTestEffect,
+  );
+
+  expect(result).toMatchObject(
+    Either.left({ _tag: "RequestEncodeError", location: "query" }),
   );
 });
