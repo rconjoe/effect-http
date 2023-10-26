@@ -1,5 +1,17 @@
 # effect-http
 
+## 0.35.1
+
+### Patch Changes
+
+- fdb438c: Update effect.
+
+## 0.35.0
+
+### Minor Changes
+
+- 3da55b7: Update effect.
+
 ## 0.34.0
 
 ### Minor Changes
